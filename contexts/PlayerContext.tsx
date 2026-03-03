@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import { startKeepAlive, stopKeepAlive } from '@/lib/keepAlive';
 
 export interface Song {
     _id: string;
@@ -141,14 +142,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             setCurrentSong(song);
             setIsPlaying(true);
             setCurrentTime(0);
+            startKeepAlive(); // ← iOS: called synchronously from user gesture
 
             if (song.youtubeVideoId) {
-                // Pause/teardown any active HTML audio
                 if (audioRef.current) {
                     audioRef.current.pause();
                     audioRef.current = null;
                 }
-                // YouTubePlayer component watches currentSong and loads the video
             } else {
                 setupAudio(song);
                 audioRef.current?.play().catch(() => { });
@@ -159,6 +159,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     const togglePlay = useCallback(() => {
         if (!currentSong) return;
+        const nowPlaying = !isPlayingRef.current;
+        if (nowPlaying) startKeepAlive(); else stopKeepAlive();
+
         if (currentSong.youtubeVideoId && ytPlayerRef.current) {
             if (isPlayingRef.current) {
                 ytPlayerRef.current.pauseVideo();
@@ -188,6 +191,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setCurrentSong(q[nextIdx]);
         setIsPlaying(true);
         setCurrentTime(0);
+        startKeepAlive(); // keep alive across track changes
         if (!q[nextIdx].youtubeVideoId) {
             setupAudio(q[nextIdx]);
             audioRef.current?.play().catch(() => { });
@@ -209,6 +213,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         setCurrentSong(q[prevIdx]);
         setIsPlaying(true);
         setCurrentTime(0);
+        startKeepAlive(); // keep alive across track changes
         if (!q[prevIdx]?.youtubeVideoId) {
             setupAudio(q[prevIdx]);
             audioRef.current?.play().catch(() => { });

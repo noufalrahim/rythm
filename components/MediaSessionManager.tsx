@@ -6,12 +6,15 @@ import { usePlayer } from '@/contexts/PlayerContext';
 /**
  * MediaSessionManager
  *
- * Integrates the browser's Media Session API so that:
- * - The OS lock screen / notification panel shows song title, artist & artwork.
- * - Hardware/software playback buttons (play, pause, next, prev, seek) work.
- * - Audio continues playing while the screen is off (Android Chrome / PWA).
+ * Wires up the browser's Media Session API:
+ * - Lock screen / notification shows title, artist & artwork.
+ * - Hardware/software buttons (play, pause, next, prev, seek) work.
  *
- * This component renders nothing – it only runs effects.
+ * Background audio keep-alive (silent looping audio) is handled in
+ * PlayerContext via lib/keepAlive.ts — called synchronously from user
+ * gesture handlers so it works on both Android and iOS.
+ *
+ * Renders nothing.
  */
 export default function MediaSessionManager() {
     const {
@@ -25,7 +28,7 @@ export default function MediaSessionManager() {
         seekTo,
     } = usePlayer();
 
-    // ── Update metadata whenever the song changes ──────────────────────────
+    // ── Metadata ───────────────────────────────────────────────────────────
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
         if (!currentSong) {
@@ -33,10 +36,13 @@ export default function MediaSessionManager() {
             return;
         }
 
-        const artwork: MediaImage[] = [];
-        if (currentSong.coverUrl) {
-            artwork.push({ src: currentSong.coverUrl, sizes: '512x512', type: 'image/jpeg' });
-        }
+        const artwork: MediaImage[] = currentSong.coverUrl
+            ? [
+                { src: currentSong.coverUrl, sizes: '96x96', type: 'image/jpeg' },
+                { src: currentSong.coverUrl, sizes: '256x256', type: 'image/jpeg' },
+                { src: currentSong.coverUrl, sizes: '512x512', type: 'image/jpeg' },
+            ]
+            : [];
 
         navigator.mediaSession.metadata = new MediaMetadata({
             title: currentSong.title,
@@ -46,13 +52,13 @@ export default function MediaSessionManager() {
         });
     }, [currentSong]);
 
-    // ── Sync playback state ────────────────────────────────────────────────
+    // ── Playback state ─────────────────────────────────────────────────────
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
         navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }, [isPlaying]);
 
-    // ── Position state (for seekbar in notification) ───────────────────────
+    // ── Position state (notification seekbar) ──────────────────────────────
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
         if (!duration || duration <= 0) return;
@@ -62,12 +68,10 @@ export default function MediaSessionManager() {
                 playbackRate: 1,
                 position: Math.min(currentTime, duration),
             });
-        } catch {
-            // setPositionState can throw if position > duration due to race
-        }
+        } catch { /* position > duration race */ }
     }, [currentTime, duration]);
 
-    // ── Register action handlers once (stable refs via useEffect) ──────────
+    // ── Action handlers ────────────────────────────────────────────────────
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
 
@@ -76,27 +80,22 @@ export default function MediaSessionManager() {
             ['pause', () => { if (isPlaying) togglePlay(); }],
             ['nexttrack', () => nextSong()],
             ['previoustrack', () => prevSong()],
-            ['seekbackward', (details) => seekTo(Math.max(0, currentTime - (details.seekOffset ?? 10)))],
-            ['seekforward', (details) => seekTo(Math.min(duration, currentTime + (details.seekOffset ?? 10)))],
-            ['seekto', (details) => { if (details.seekTime != null) seekTo(details.seekTime); }],
+            ['seekbackward', (d) => seekTo(Math.max(0, currentTime - (d.seekOffset ?? 10)))],
+            ['seekforward', (d) => seekTo(Math.min(duration, currentTime + (d.seekOffset ?? 10)))],
+            ['seekto', (d) => { if (d.seekTime != null) seekTo(d.seekTime); }],
         ];
 
         for (const [action, handler] of handlers) {
-            try {
-                navigator.mediaSession.setActionHandler(action, handler);
-            } catch {
-                // Some actions may not be supported in all browsers
-            }
+            try { navigator.mediaSession.setActionHandler(action, handler); }
+            catch { /* unsupported */ }
         }
 
         return () => {
             for (const [action] of handlers) {
-                try {
-                    navigator.mediaSession.setActionHandler(action, null);
-                } catch { /* ignore */ }
+                try { navigator.mediaSession.setActionHandler(action, null); }
+                catch { /* ignore */ }
             }
         };
-        // We want fresh closures every time these values change
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPlaying, currentTime, duration]);
 
