@@ -65,6 +65,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const [repeatMode, setRepeatMode] = useState<'none' | 'all' | 'one'>('none');
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const audioEventsAttachedRef = useRef(false);
     const ytPlayerRef = useRef<YTPlayer | null>(null);
     const queueRef = useRef<Song[]>([]);
     const queueIndexRef = useRef(0);
@@ -115,20 +116,43 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     // ─── Audio (non-YouTube) helpers ─────────────────────────────────────────
+    const getAudioEl = useCallback(() => {
+        if (!audioRef.current) {
+            const audio = new Audio();
+            audio.preload = 'auto';
+            audio.crossOrigin = 'anonymous';
+            audio.setAttribute('playsinline', 'true');
+            audio.setAttribute('webkit-playsinline', 'true');
+            audioRef.current = audio;
+        }
+
+        if (!audioEventsAttachedRef.current && audioRef.current) {
+            const audio = audioRef.current;
+            audio.addEventListener('timeupdate', () => setCurrentTime(audio.currentTime));
+            audio.addEventListener('loadedmetadata', () => setDuration(audio.duration || 0));
+            audio.addEventListener('ended', () => notifyYoutubeEnded());
+            audioEventsAttachedRef.current = true;
+        }
+
+        return audioRef.current;
+    }, [notifyYoutubeEnded]);
+
     const setupAudio = useCallback(
         (song: Song) => {
-            if (audioRef.current) {
-                audioRef.current.pause();
+            const audio = getAudioEl();
+            audio.pause();
+            if (!song.audioUrl) {
+                audio.removeAttribute('src');
+                audio.load();
+                setDuration(song.duration);
+                return;
             }
-            const audio = new Audio(song.audioUrl || '');
+            audio.src = song.audioUrl;
             audio.volume = volume;
-            audioRef.current = audio;
-            audio.addEventListener('timeupdate', () => setCurrentTime(audio.currentTime));
-            audio.addEventListener('loadedmetadata', () => setDuration(audio.duration || song.duration));
-            audio.addEventListener('ended', () => notifyYoutubeEnded());
-            if (!song.audioUrl) setDuration(song.duration);
+            audio.currentTime = 0;
+            audio.load();
         },
-        [volume, notifyYoutubeEnded]
+        [getAudioEl, volume]
     );
 
     // ─── Public API ──────────────────────────────────────────────────────────
@@ -147,7 +171,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             if (song.youtubeVideoId) {
                 if (audioRef.current) {
                     audioRef.current.pause();
-                    audioRef.current = null;
                 }
             } else {
                 setupAudio(song);
@@ -197,7 +220,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             audioRef.current?.play().catch(() => { });
         } else if (audioRef.current) {
             audioRef.current.pause();
-            audioRef.current = null;
         }
     }, [setupAudio]);
 
@@ -219,7 +241,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             audioRef.current?.play().catch(() => { });
         } else if (audioRef.current) {
             audioRef.current.pause();
-            audioRef.current = null;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentTime, setupAudio]);
