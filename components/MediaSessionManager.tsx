@@ -2,17 +2,17 @@
 
 import { useEffect } from 'react';
 import { usePlayer } from '@/contexts/PlayerContext';
+import { resumeKeepAlive } from '@/lib/keepAlive';
 
 /**
  * MediaSessionManager
  *
- * Wires up the browser's Media Session API:
- * - Lock screen / notification shows title, artist & artwork.
- * - Hardware/software buttons (play, pause, next, prev, seek) work.
+ * 1. Handles Media Session API (lock screen / notification controls).
+ * 2. Calls resumeKeepAlive() on visibilitychange so the AudioContext
+ *    gets un-suspended when the user returns from the lock screen.
  *
- * Background audio keep-alive (silent looping audio) is handled in
- * PlayerContext via lib/keepAlive.ts — called synchronously from user
- * gesture handlers so it works on both Android and iOS.
+ * The actual silent audio is started in PlayerContext (synchronously
+ * from user gesture handlers) via lib/keepAlive.ts.
  *
  * Renders nothing.
  */
@@ -27,6 +27,17 @@ export default function MediaSessionManager() {
         prevSong,
         seekTo,
     } = usePlayer();
+
+    // ── Resume keep-alive when returning from lock screen / background ──────
+    useEffect(() => {
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                resumeKeepAlive();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => document.removeEventListener('visibilitychange', onVisibility);
+    }, []);
 
     // ── Metadata ───────────────────────────────────────────────────────────
     useEffect(() => {
@@ -58,7 +69,7 @@ export default function MediaSessionManager() {
         navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }, [isPlaying]);
 
-    // ── Position state (notification seekbar) ──────────────────────────────
+    // ── Position state ─────────────────────────────────────────────────────
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
         if (!duration || duration <= 0) return;
@@ -89,7 +100,6 @@ export default function MediaSessionManager() {
             try { navigator.mediaSession.setActionHandler(action, handler); }
             catch { /* unsupported */ }
         }
-
         return () => {
             for (const [action] of handlers) {
                 try { navigator.mediaSession.setActionHandler(action, null); }

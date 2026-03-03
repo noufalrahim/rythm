@@ -164,8 +164,8 @@ export default function YouTubePlayer() {
         <div
             style={{
                 position: 'fixed',
-                left: '-9999px',
-                top: '-9999px',
+                bottom: 0,
+                right: 0,
                 width: '1px',
                 height: '1px',
                 overflow: 'hidden',
