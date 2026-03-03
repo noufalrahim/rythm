@@ -1,26 +1,35 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Playlist from '@/lib/models/Playlist';
+import { getAuthUser } from '@/lib/auth';
 
+// GET /api/playlists – user's playlists (auth) or public playlists
 export async function GET() {
-    try {
-        await dbConnect();
-        const playlists = await Playlist.find({ isPublic: true })
-            .populate({ path: 'songs', populate: [{ path: 'artist', select: 'name' }, { path: 'album', select: 'coverUrl' }] })
-            .lean();
-        return NextResponse.json({ playlists });
-    } catch {
-        return NextResponse.json({ error: 'Failed to fetch playlists' }, { status: 500 });
-    }
+    await dbConnect();
+    const user = await getAuthUser();
+
+    const filter = user ? { userId: user._id } : { isPublic: true };
+    const playlists = await Playlist.find(filter).sort({ createdAt: -1 }).lean();
+    return NextResponse.json({ playlists });
 }
 
+// POST /api/playlists – create a playlist (auth required)
 export async function POST(request: Request) {
-    try {
-        await dbConnect();
-        const body = await request.json();
-        const playlist = await Playlist.create(body);
-        return NextResponse.json({ playlist }, { status: 201 });
-    } catch {
-        return NextResponse.json({ error: 'Failed to create playlist' }, { status: 500 });
-    }
+    const user = await getAuthUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    await dbConnect();
+    const { name, description, isPublic } = await request.json();
+    if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+
+    const playlist = await Playlist.create({
+        name: name.trim(),
+        description: description || '',
+        coverUrl: '',
+        userId: user._id,
+        songs: [],
+        isPublic: isPublic !== false,
+    });
+
+    return NextResponse.json({ playlist }, { status: 201 });
 }

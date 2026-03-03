@@ -65,7 +65,6 @@ export default function SearchPage() {
                 />
             </div>
 
-            {/* Genre browse (when idle) */}
             {!query && (
                 <>
                     <h2 className="section-title" style={{ marginBottom: 16 }}>Browse by Genre</h2>
@@ -113,7 +112,6 @@ export default function SearchPage() {
                                 <span className="section-see-all">{songs.length} videos</span>
                             </div>
 
-                            {/* Featured top result */}
                             {songs[0] && (
                                 <div
                                     className="music-card"

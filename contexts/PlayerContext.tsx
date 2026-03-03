@@ -11,18 +11,17 @@ export interface Song {
     audioUrl: string;
     duration: number;
     plays?: number;
-    youtubeVideoId?: string; // present for YouTube-sourced songs
+    youtubeVideoId?: string;
 }
 
-/** Minimal interface we use from the YT IFrame Player */
 interface YTPlayer {
     playVideo: () => void;
     pauseVideo: () => void;
     seekTo: (seconds: number, allowSeekAhead: boolean) => void;
-    setVolume: (volume: number) => void; // 0–100
+    setVolume: (volume: number) => void;
     getDuration: () => number;
     getCurrentTime: () => number;
-    getPlayerState: () => number; // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering
+    getPlayerState: () => number;
     loadVideoById: (videoId: string) => void;
     destroy: () => void;
 }

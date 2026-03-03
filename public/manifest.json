@@ -4,9 +4,11 @@
   "description": "Stream your favorite music. Discover new artists, playlists and albums.",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#121212",
-  "theme_color": "#121212",
+  "theme_color": "#1DB954",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "categories": ["music", "entertainment"],
   "icons": [
     {

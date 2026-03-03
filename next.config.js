@@ -4,6 +4,36 @@ const withPWA = require('next-pwa')({
     register: true,
     skipWaiting: true,
     disable: process.env.NODE_ENV === 'development',
+    fallbacks: {
+        document: '/offline',
+    },
+    runtimeCaching: [
+        {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+                cacheName: 'google-fonts',
+                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+        },
+        {
+            urlPattern: /^https:\/\/i\.ytimg\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+                cacheName: 'youtube-thumbnails',
+                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+        },
+        {
+            urlPattern: /\/api\/(?!auth).*/i,
+            handler: 'NetworkFirst',
+            options: {
+                cacheName: 'api-cache',
+                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
+                networkTimeoutSeconds: 10,
+            },
+        },
+    ],
 });
 
 /** @type {import('next').NextConfig} */
