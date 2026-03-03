@@ -90,6 +90,7 @@ export async function POST() {
             name: 'Top Hits 2024',
             description: 'The biggest songs of 2024',
             coverUrl: COVER_IMAGES[0],
+            // @ts-expect-error – Mongoose accepts ObjectId[] at runtime for subdocument arrays
             songs: songs.slice(0, 8).map(s => s._id),
             userId: 'guest',
             isPublic: true,
